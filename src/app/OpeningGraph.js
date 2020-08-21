@@ -87,11 +87,17 @@ export default class OpeningGraph {
         targetNode.details = newDetails
 
         var currNode = this.getNodeFromGraph(fullSourceFen, true)
-        currNode.playedByMax = Math.max(currNode.playedByMax, this.getTargetDetailsCount(targetNode.details))
         if(!currNode.playedBy) {
             currNode.playedBy = {}
         }
-        currNode.playedBy[move] = ''
+
+        let moveCount = currNode.playedBy[move]
+        if(!moveCount) {
+            moveCount = 0
+        }
+        moveCount = moveCount+1
+        currNode.playedBy[move] = moveCount
+        currNode.playedByMax = Math.max(currNode.playedByMax, moveCount)
     }
 
     addBookNode(fullFen, book) {
@@ -122,16 +128,6 @@ export default class OpeningGraph {
         return this.graph.book.get(fen)
     }
 
-    getTargetDetailsCount(targetDetails) {
-        if(!targetDetails) {
-            return 0
-        }
-        if(Number.isInteger(targetDetails)) {
-            //if details is an integer, then this has been played once
-            return 1
-        }
-        return targetDetails.draws+targetDetails.blackWins+targetDetails.whiteWins
-    }
 
     getNodeFromGraph(fullFen, addIfNull) {
         let fen = simplifiedFen(fullFen)
@@ -252,7 +248,8 @@ export default class OpeningGraph {
                     dest:move.to,
                     level:this.levelFor(targetNodeDetails.count, currNode.playedByMax),
                     san:move.san,
-                    details:targetNodeDetails
+                    details:targetNodeDetails,
+                    moveCount:entry[1]
                 }
             })
         }        

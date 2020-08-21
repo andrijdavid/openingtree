@@ -101,7 +101,7 @@ export default class MovesTable extends React.Component {
         {
         this.props.movesToShow.map((move, moveIndex) => {
             let lastPlayedGame = move.details.lastPlayedGame
-            return lastPlayedGame && move.details.count === 1?
+            return lastPlayedGame && move.moveCount === 1?
                 this.getSingleItemRow(move,lastPlayedGame):
                 this.getMultiItemRow(move, moveIndex)
                 
@@ -120,7 +120,7 @@ export default class MovesTable extends React.Component {
         return <TableRow className="moveRow" key = {`m${move.orig}${move.dest}${move.san}`} onClick={this.move(move.san)}>
             <TableCell size="small" className="smallCol">{move.san} </TableCell>
             <TableCell size="small" id={`p${this.props.namespace}${moveIndex}`} className="smallCol" onClick ={this.togglePerformancePopover(moveIndex)}>
-                {simplifyCount(move.details.count)}<FontAwesomeIcon className="lowOpacity leftPadding" icon={faInfoCircle}/>
+                {simplifyCount(move.moveCount)}<FontAwesomeIcon className="lowOpacity leftPadding" icon={faInfoCircle}/>
                 {this.getPopover(moveIndex)}
             </TableCell>
             <TableCell>
