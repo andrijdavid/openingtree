@@ -90,7 +90,6 @@ export default class OpeningGraph {
         if(!currNode.playedBy) {
             currNode.playedBy = {}
         }
-
         let moveCount = currNode.playedBy[move]
         if(!moveCount) {
             moveCount = 0
