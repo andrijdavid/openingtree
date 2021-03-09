@@ -3,6 +3,9 @@ import {trackEvent} from '../app/Analytics'
 import {copyText} from './loader/Common'
 import {chessLogic} from '../app/chess/ChessLogic'
 import OpeningGraph from '../app/OpeningGraph'
+import {fetchBookMoves} from '../app/OpeningBook'
+import CookieManager from '../app/CookieManager'
+import { handleDarkMode } from './DarkMode';
 
 function turnColor() {
     return fullTurnName(this.chess.turn())
@@ -22,6 +25,9 @@ function brushes() {
     }
     return this.againstBrushes
 }
+function highlightArrow(move) {
+    this.setState({highlightedMove:move})
+}
 
 function calcMovable() {
 const dests = {}
@@ -40,15 +46,21 @@ function orientation() {
     return this.state.settings.orientation
 }
 
-function onMove(from, to, san) {
+function onMove(sanOrOrig, dest) {
+    let moveObj = null
+    if(dest) {
+        moveObj = { from:sanOrOrig, to:dest, promotion: 'q'}
+    } else {
+        moveObj = sanOrOrig
+    }
     const chess = this.chess
-    let move = chess.move({ from, to, san, promotion: 'q'})
+    let move = chess.move(moveObj)
     this.setState({ fen: chess.fen(), lastMove: move})
 }
 
 
-function onMoveAction(from, to, san) {
-    this.onMove(from,to, san)
+function onMoveAction(sanOrOrig, dest) {
+    this.onMove(sanOrOrig, dest)
     trackEvent(Constants.EVENT_CATEGORY_CHESSBOARD, "Move")
 }
 
@@ -64,7 +76,7 @@ function updateProcessedGames(downloadLimit, n, parsedGame) {
         gamesProcessed: totalGamesProcessed,
         downloadingGames: (totalGamesProcessed<downloadLimit || downloadLimit>=Constants.MAX_DOWNLOAD_LIMIT)?this.state.downloadingGames:false
     })
-    // continue to download games if 
+    // continue to download games if
     // 1. we have not reached download limit OR
     //    there is no download limit set (downloadLimit>MAX condition)
     // 2. user did not hit stop button
@@ -78,24 +90,39 @@ function moveToShape(move) {
     }
 }
 
-function autoShapes() {
-    var moves = this.movesToShow()
-    if(moves) {
-        var shapes = moves.map(this.moveToShape.bind(this))
-        return this.fillArray(shapes,  25)
+function autoShapes(moves, highlightedMove) {
+    var shapes = []
+    if(highlightedMove) {
+        if(!highlightedMove.orig || !highlightedMove.dest) {
+            let chess = chessLogic(this.state.variant, this.state.fen)
+            let move = chess.move(highlightedMove.san)
+            highlightedMove.orig=move.from
+            highlightedMove.dest=move.to
+        }
+        highlightedMove.level = 0
+        shapes.push(this.moveToShape(highlightedMove))
     }
-    return this.fillArray([], 25) // dummy arrow to clear out existing arrows
+    if(moves) {
+        shapes = shapes.concat(moves.filter((m)=>{
+            if(!highlightedMove) {
+                return true
+            }
+            if (highlightedMove.orig === m.orig && highlightedMove.dest === m.dest) {
+                return false
+            }
+            return true
+        }).map(this.moveToShape.bind(this)))
+    }
+    return this.fillArray(shapes,  25)
 }
 
-function movesToShow() {
+function getPlayerMoves() {
     if(!this.state.openingGraph.hasMoves) {
         return null;
     }
     var moves = this.state.openingGraph.movesForFen(this.chess.fen())
     return moves?moves.sort((a,b)=>b.moveCount-a.moveCount):[]
 }
-
-
 
 function gameResults() {
     return this.state.openingGraph.gameResultsForFen(this.chess.fen())
@@ -120,18 +147,29 @@ function clear() {
 }
 
 function settingsChange(name, value) {
+    if(name === Constants.SETTING_NAME_MOVES_SETTINGS ) {
+        let settingsToPersist = {}
+        settingsToPersist[name] = value
+        CookieManager.setSettingsCookie(settingsToPersist)
+        this.state.openingGraph.clearBookNodes()
+    } else if (name === Constants.SETTING_NAME_DARK_MODE) {
+        CookieManager.setDarkModeCookie(value)
+    }
+
     let settings = this.state.settings
     settings[name] = value;
-    this.setState({
-        'settings':settings
-    })
+    this.setState({ settings });
+
+    if (name === Constants.SETTING_NAME_DARK_MODE) {
+        setImmediate(()=>handleDarkMode(value));
+    }
 }
 
 function launch(url) {
     return () => {
-      window.open(url, "_blank")
+        window.open(url, "_blank")
     }
-  }
+}
 
 
 function showError(message, trackingEvent, subMessage, action, severity) {
@@ -160,7 +198,6 @@ function showInfo(message, trackingLabel) {
         trackingLabel?trackingLabel:message)
 }
 
-
 function closeError() {
     this.setState({message:'', subMessage:''})
 }
@@ -168,6 +205,9 @@ function closeError() {
 function toggleFeedback(diagnosticsOpen) {
     return () => {
         let feedbackOpen = this.state.feedbackOpen
+        if(!feedbackOpen) {
+            trackEvent(Constants.EVENT_CATEGORY_GLOBAL_HEADER, "feedbackOpen")
+        }
         this.closeError()
         this.setState({feedbackOpen:!feedbackOpen,
                 diagnosticsDataOpen:diagnosticsOpen})
@@ -189,6 +229,9 @@ function copyDiagnostics() {
 
 
 function importGameState(importState) {
+    let newSettings=importState.settings
+    //transfer objects from current settings that do not need serialization
+    newSettings.movesSettings=this.state.settings.movesSettings
     this.setState({
       settings:importState.settings,
       openingGraph:importState.openingGraph,
@@ -198,9 +241,9 @@ function importGameState(importState) {
     setImmediate(this.reset.bind(this))// setImmediate because we want the variant change to take effect
   }
   function getChessboardWidth(){
-    // getting nearest multiple of 8 because chessground has 
+    // getting nearest multiple of 8 because chessground has
     // css alignment issues if board width is not a multple of 8
-    
+
     return `${nearestMultipleOf8(getChessboardWidthInternal())}px`
   }
   function nearestMultipleOf8(n){
@@ -231,7 +274,7 @@ function getDiagnosticsValue() {
   `
 }
 function getRedditLink() {
-    return `https://www.reddit.com/message/compose/?to=${Constants.OPENNIG_TREE_REDDIT}&subject=${this.getSubject()}&message=%0D%0A%0D%0A%0D%0A${this.getBody()}`
+    return `https://www.reddit.com/message/compose/?to=${Constants.OPENING_TREE_REDDIT}&subject=${this.getSubject()}&message=%0D%0A%0D%0A%0D%0A${this.getBody()}`
 }
 
 function getEmailLink() {
@@ -250,6 +293,76 @@ function variantChange(newVariant) {
     setImmediate(this.reset.bind(this))
 }
 
+// fetch the book moves openinggraph directly if they are available
+// otherwise
+//  1. fetch them from lichess
+//  2. store them in openinggraph
+//  3. update the component so that getBookMoves gets called again
+function getBookMoves() {
+    let moves = this.state.openingGraph.getBookNode(this.chess.fen())
+    if(this.state.settings.movesSettings.openingBookType === Constants.OPENING_BOOK_TYPE_OFF) {
+        return {fetch:'off'}
+    }
+
+    if(!moves) {
+        moves = this.forceFetchBookMoves()
+    }
+    return moves
+}
+
+function forceFetchBookMoves() {
+    let moves = fetchBookMoves(this.state.fen, this.state.variant, this.state.settings.movesSettings, (moves)=>{
+        this.state.openingGraph.addBookNode(this.chess.fen(), moves)
+        this.setState({update:this.state.update+1})
+    })
+    this.state.openingGraph.addBookNode(this.chess.fen(), moves)
+    setImmediate(()=>this.setState({update:this.state.update+1}))
+    return moves
+}
+
+function mergePlayerAndBookMoves(playerMovesToShow, bookMovesToShow) {
+    if(!playerMovesToShow) {
+        return
+    }
+    let bookMovesMap = createMap(bookMovesToShow.moves)
+    playerMovesToShow.forEach((move)=>{
+        let bookMove = bookMovesMap.get(move.san)
+        if(!bookMove) {
+            return
+        }
+        move.compareTo = {
+            bookScore:getCompareScores(bookMove),
+            userScore:getCompareScores(move),
+            values:getCompareToValues(bookMove)
+        }
+        bookMove.compareTo = {
+            bookScore:getCompareScores(bookMove),
+            userScore:getCompareScores(move),
+            values:getCompareToValues(move)
+        }
+    })
+}
+function getCompareScores(move){
+    return (move.details.whiteWins+move.details.draws/2)/move.details.count*100
+}
+
+function getCompareToValues(move) {
+    return [move.details.whiteWins/move.details.count*100,
+        (move.details.whiteWins+move.details.draws)/move.details.count*100]
+}
+
+function createMap(movesToShow){
+    let map = new Map()
+    if(!movesToShow) {
+        return map
+    }
+    movesToShow.forEach((move)=> {
+        map.set(move.san, move)
+    })
+    return map
+}
+
+
 function addStateManagement(obj){
     obj.orientation  = orientation
     obj.turnColor = turnColor
@@ -266,7 +379,7 @@ function addStateManagement(obj){
     obj.fillArray = fillArray
     obj.brushes = brushes
     obj.moveToShape = moveToShape
-    obj.movesToShow = movesToShow
+    obj.getPlayerMoves = getPlayerMoves
     obj.gameResults = gameResults
     obj.showError = showError
     obj.showInfo = showInfo
@@ -283,6 +396,10 @@ function addStateManagement(obj){
     obj.getBody = getBody.bind(obj)
     obj.getRedditLink = getRedditLink
     obj.variantChange = variantChange
+    obj.getBookMoves = getBookMoves
+    obj.forceFetchBookMoves = forceFetchBookMoves
+    obj.mergePlayerAndBookMoves = mergePlayerAndBookMoves
+    obj.highlightArrow = highlightArrow
 }
 
 export {addStateManagement}

@@ -1,16 +1,28 @@
 import React from 'react'
 import PGNLoader from './loader/PGNLoader'
 import SettingsView from './Settings'
-import { TabContent, TabPane, Nav, NavItem, NavLink, Row, Col,Button } from 'reactstrap';
+import {
+  Button,
+  Col,
+  Modal,
+  ModalFooter,
+  ModalHeader,
+  Nav,
+  NavItem,
+  NavLink,
+  Row,
+  TabContent,
+  TabPane
+} from 'reactstrap';
 import classnames from 'classnames';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faUser, faList, faCog, faChartBar } from '@fortawesome/free-solid-svg-icons'
-import MovesList from './MovesList';
+import { faUser, faList, faCog, faChartBar, faBook } from '@fortawesome/free-solid-svg-icons'
+import MovesList from './moves/MovesList'
+import BookMoves from './moves/BookMoves'
 import {trackEvent} from '../app/Analytics'
 import * as Constants from '../app/Constants'
 import ReportControls from './ReportControls'
-import {Modal, ModalHeader, ModalFooter} from 'reactstrap'
-import {Table, TableRow, TableBody, TableCell} from '@material-ui/core'
+import { Table, TableRow, TableBody, TableCell } from '@material-ui/core'
 
 export default class ControlsContainer extends React.Component {
     constructor(props){
@@ -23,7 +35,6 @@ export default class ControlsContainer extends React.Component {
         this.setState({activeGame:null})
       }
     }
-    
 
     launchGame(game) {
       if(game.url) {
@@ -38,7 +49,13 @@ export default class ControlsContainer extends React.Component {
         this.setState({activeGame:game})
       })
     }
-
+    shouldComponentUpdate(newProps){
+      if(this.props.resize !== newProps.resize) {
+        // dont update component on resize
+        return false
+      }
+      return true
+    }
     toggle(tab) {
         if(this.state.activeTab !== tab) {
             this.setState({activeTab:tab})
@@ -48,8 +65,27 @@ export default class ControlsContainer extends React.Component {
     switchToUserTab() {
       this.toggle('user')
     }
-    switchToMovesTab() {
+    switchToMovesTab(highlightMove) {
       this.toggle('moves')
+      if(highlightMove) {
+        this.setState({highlightPlayerMove:highlightMove})
+        setTimeout(() => {
+          this.setState({
+            highlightPlayerMove:null
+          })
+        }, 1000);
+      }
+    }
+    switchToBookTab(highlightMove) {
+      this.toggle('book')
+      if(highlightMove) {
+        this.setState({highlightBookMove:highlightMove})
+        setTimeout(() => {
+          this.setState({
+            highlightBookMove:null
+          })
+        }, 1000);
+      }
     }
 
     render(){
@@ -58,7 +94,6 @@ export default class ControlsContainer extends React.Component {
               <ModalHeader toggle={this.toggleModal}>Game details</ModalHeader>
               {!this.state.activeGame?null:
               <Table>
-                
                 <TableBody>
                   {
                     Object.entries(this.state.activeGame.headers).map((entry)=>!entry[1]?null:<TableRow className="performanceRatingRow">
@@ -66,7 +101,6 @@ export default class ControlsContainer extends React.Component {
                         <TableCell className="performanceRatingRow">{entry[1]}</TableCell>
                     </TableRow>
                     )}
-                  
                 </TableBody>
               </Table>
               }
@@ -93,6 +127,14 @@ export default class ControlsContainer extends React.Component {
         </NavItem>
         <NavItem>
           <NavLink
+            className={classnames({ active: this.state.activeTab === 'book' })}
+            onClick={() => { this.toggle('book'); }}
+          >
+            <FontAwesomeIcon icon={faBook} /> {this.state.activeTab === 'book'?"Opening book":""}
+          </NavLink>
+        </NavItem>
+        <NavItem>
+          <NavLink
             className={classnames({ active: this.state.activeTab === 'report' })}
             onClick={() => { this.toggle('report'); }}
           >
@@ -110,12 +152,12 @@ export default class ControlsContainer extends React.Component {
       </Nav>
       <TabContent activeTab={this.state.activeTab}>
         <TabPane tabId="user">
-            <PGNLoader 
-              switchToMovesTab={this.switchToMovesTab.bind(this)} 
-              clear = {this.props.clear} 
-              gamesProcessed = {this.props.gamesProcessed} 
-              settings = {this.props.settings} 
-              onChange = {this.props.settingsChange} 
+            <PGNLoader
+              switchToMovesTab={this.switchToMovesTab.bind(this)}
+              clear = {this.props.clear}
+              gamesProcessed = {this.props.gamesProcessed}
+              settings = {this.props.settings}
+              onChange = {this.props.settingsChange}
               notify = {this.props.updateProcessedGames}
               showError = {this.props.showError}
               showInfo = {this.props.showInfo}
@@ -128,34 +170,63 @@ export default class ControlsContainer extends React.Component {
               />
             </TabPane>
         <TabPane tabId="moves">
-            <MovesList 
-              switchToUserTab={this.switchToUserTab.bind(this)} 
-              movesToShow={this.props.movesToShow} 
+            <MovesList
+              switchToUserTab={this.switchToUserTab.bind(this)}
+              playerMoves={this.props.playerMoves}
               gameResults={this.props.gameResults}
               onMove={this.props.onMove}
               settings={this.props.settings}
               turnColor={this.props.turnColor}
               settingsChange={this.props.settingsChange}
               launchGame = {this.launchGame.bind(this)}
+              switchToBookTab={this.switchToBookTab.bind(this)}
+              highlightMove={this.state.highlightPlayerMove}
+              variant={this.props.variant}
+              highlightArrow={this.props.highlightArrow}
+            />
+        </TabPane>
+        <TabPane tabId="book">
+            <BookMoves
+              bookMoves={this.props.bookMoves}
+              gameResults={this.props.bookResults}
+              onMove={this.props.onMove}
+              settings={this.props.settings}
+              turnColor={this.props.turnColor}
+              settingsChange={this.props.settingsChange}
+              launchGame = {this.launchGame.bind(this)}
+              switchToMovesTab = {this.switchToMovesTab.bind(this)}
+              highlightMove = {this.state.highlightBookMove}
+              forceFetchBookMoves = {this.props.forceFetchBookMoves}
+              variant={this.props.variant}
+              highlightArrow={this.props.highlightArrow}
               />
         </TabPane>
         <TabPane tabId="report">
           <ReportControls fen={this.props.fen} simplifiedView = {false}
             moveDetails = {this.props.openingGraph.getDetailsForFen(this.props.fen)}
             launchGame={this.launchGame.bind(this)} settings={this.props.settings}
-            switchToUserTab={this.switchToUserTab.bind(this)} 
+            switchToUserTab={this.switchToUserTab.bind(this)}
             isOpen = {this.state.activeTab === "report"}
-            showInfo = {this.props.showInfo}/>
+            showInfo = {this.props.showInfo} reportFooter={this.reportFooter()}/>
         </TabPane>
         <TabPane tabId="settings">
           <Row>
-            <Col sm="6">
-            <SettingsView fen={this.props.fen} settings={this.props.settings} isOpen = {true} clear = {this.props.clear} reset = {this.props.reset} onChange = {this.props.settingsChange}/>
-            
+            <Col md="9" xs="12">
+            <SettingsView
+              fen={this.props.fen}
+              settings={this.props.settings}
+              isOpen = {true}
+              clear = {this.props.clear}
+              reset = {this.props.reset}
+              onChange = {this.props.settingsChange} />
             </Col>
           </Row>
         </TabPane>
       </TabContent>
         </div>
+    }
+
+    reportFooter(){
+      return <span>Performance rating calculated based on <a href="https://handbook.fide.com/chapter/B022017" target="_blank" rel="noopener noreferrer">FIDE regulations</a></span>
     }
 }

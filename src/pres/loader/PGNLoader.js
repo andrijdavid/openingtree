@@ -1,5 +1,5 @@
 import React from 'react'
-import { createSubObjectWithProperties, getTimeframeSteps } from '../../app/util'
+import { createSubObjectWithProperties } from '../../app/util'
 import * as Constants from '../../app/Constants'
 import { trackEvent } from '../../app/Analytics'
 import Source from './Source'
@@ -31,13 +31,10 @@ export default class PGNLoader extends React.Component {
             selectedNotablePlayer:{},
             lichessLoginState: Constants.LICHESS_NOT_LOGGED_IN,
             lichessLoginName: null
-
         }
         if(selectedSite === Constants.SITE_LICHESS) {
             this.fetchLichessLoginStatus()
         }
-        this.timeframeSteps = getTimeframeSteps()
-        this.state[Constants.FILTER_NAME_SELECTED_TIMEFRAME] = [0, this.timeframeSteps.length - 1]
         this.state[Constants.FILTER_NAME_DOWNLOAD_LIMIT] = Constants.MAX_DOWNLOAD_LIMIT
         this.state[Constants.TIME_CONTROL_ULTRA_BULLET] = true
         this.state[Constants.TIME_CONTROL_BULLET] = true
@@ -48,6 +45,7 @@ export default class PGNLoader extends React.Component {
         this.state[Constants.TIME_CONTROL_DAILY] = true
         this.state[Constants.FILTER_NAME_RATED] = "all"
         this.state[Constants.FILTER_NAME_ELO_RANGE] = [0, Constants.MAX_ELO_RATING]
+        this.state[Constants.FILTER_NAME_OPPONENT] = ''
     }
 
 
@@ -57,8 +55,9 @@ export default class PGNLoader extends React.Component {
             Constants.TIME_CONTROL_BLITZ, Constants.TIME_CONTROL_RAPID,
             Constants.TIME_CONTROL_CORRESPONDENCE, Constants.TIME_CONTROL_DAILY,
             Constants.TIME_CONTROL_CLASSICAL, Constants.FILTER_NAME_RATED,
-            Constants.FILTER_NAME_SELECTED_TIMEFRAME, Constants.FILTER_NAME_DOWNLOAD_LIMIT,
-            Constants.FILTER_NAME_ELO_RANGE])
+            Constants.FILTER_NAME_DOWNLOAD_LIMIT,
+            Constants.FILTER_NAME_ELO_RANGE, Constants.FILTER_NAME_OPPONENT,
+            Constants.FILTER_NAME_FROM_DATE, Constants.FILTER_NAME_TO_DATE])
     }
 
 
@@ -168,7 +167,7 @@ export default class PGNLoader extends React.Component {
     fetchLichessLoginStatus(){
         let lichessAccessToken = cookieManager.getLichessAccessToken()
         if(lichessAccessToken) {
-            trackEvent(Constants.EVENT_CATEGORY_PGN_LOADER, "lichessTokenFound")
+            trackEvent(Constants.EVENT_CATEGORY_LICHESS_LOGIN, "lichessTokenFound")
 
             this.setState({lichessLoginState:Constants.LICHESS_STATE_PENDING})
             
@@ -180,15 +179,15 @@ export default class PGNLoader extends React.Component {
                             lichessLoginState:Constants.LICHESS_LOGGED_IN,
                             lichessLoginName:responseObj.username
                         })
-                        trackEvent(Constants.EVENT_CATEGORY_PGN_LOADER, "lichessFetchSuccess")
+                        trackEvent(Constants.EVENT_CATEGORY_LICHESS_LOGIN, "lichessFetchSuccess")
                         return
                     } 
                 } 
-                trackEvent(Constants.EVENT_CATEGORY_PGN_LOADER, "lichessFetchFailed")
+                trackEvent(Constants.EVENT_CATEGORY_LICHESS_LOGIN, "lichessFetchFailed")
                 this.setState({lichessLoginState:Constants.LICHESS_FAILED_FETCH})
             })
         } else {
-            trackEvent(Constants.EVENT_CATEGORY_PGN_LOADER, "lichessNoToken")
+            trackEvent(Constants.EVENT_CATEGORY_LICHESS_LOGIN, "lichessNoToken")
         }
     }
     logoutOfLichess() {
@@ -197,7 +196,7 @@ export default class PGNLoader extends React.Component {
             lichessLoginState:Constants.LICHESS_NOT_LOGGED_IN,
             lichessLoginName:''
         })
-        trackEvent(Constants.EVENT_CATEGORY_PGN_LOADER, "lichessLogout")
+        trackEvent(Constants.EVENT_CATEGORY_LICHESS_LOGIN, "lichessLogout")
     }
 
     filtersChange(filters) {
@@ -231,7 +230,7 @@ export default class PGNLoader extends React.Component {
             <Filters expandedPanel={this.state.expandedPanel} playerColor={this.state.playerColor}
                 handleExpansionChange={this.handleExpansionChange('filters').bind(this)}
                 site={this.state.site} playerName={this.state.playerName} advancedFilters={this.advancedFilters()}
-                timeframeSteps={this.timeframeSteps} filtersChange={this.filtersChange.bind(this)}
+                filtersChange={this.filtersChange.bind(this)}
                 selectedNotablePlayer={this.state.selectedNotablePlayer} />
             </div>
             <Actions expandedPanel={this.state.expandedPanel} playerColor={this.state.playerColor} files={this.state.files}

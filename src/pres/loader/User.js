@@ -167,7 +167,10 @@ export default class User extends React.Component {
         if(source === Constants.SITE_EVENT_DB) {
             return ''
         }
-        return playerName
+        if(!playerName) {
+            return playerName
+        }
+        return playerName.trim()
     }
     setPlayerDetails() {
          if(this.validateInputDetailsSet()) {
@@ -231,7 +234,7 @@ export default class User extends React.Component {
 
     launchLichessOauth() {
         trackEvent(
-            Constants.EVENT_CATEGORY_PGN_LOADER, "lichessLogin")
+            Constants.EVENT_CATEGORY_LICHESS_LOGIN, "lichessLogin")
         setTimeout(()=>{
             window.location.href = 
                 'https://oauth.lichess.org/oauth/authorize?response_type=code&client_id=EBXrB9R9OXpaRvOU&scope=preference:read&redirect_uri=https%3A%2F%2Flichesslogin.openingtree.com&state='+window.location.pathname
